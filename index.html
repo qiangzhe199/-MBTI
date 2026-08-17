@@ -248,7 +248,7 @@ body {
 .quiz-option.selected .quiz-option-text { color: var(--text-primary); font-weight: 600; }
 .quiz-option-check { width: 28px; height: 28px; border-radius: 50%; background: #FF6B9D; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-left: 8px; }
 
-.quiz-footer { display: flex; align-items: center; justify-content: space-between; padding: 0 0 16px; }
+.quiz-footer { display: flex; align-items: center; padding: 0 0 16px; }
 .quiz-prev-btn { display: inline-flex; align-items: center; padding: 8px 16px; color: var(--text-secondary); font-size: 14px; background: var(--card); border-radius: var(--radius-md); box-shadow: var(--shadow-card); cursor: pointer; }
 .quiz-next-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 22px; color: #fff; font-size: 15px; font-weight: 600; background: linear-gradient(135deg, var(--primary-light), var(--primary)); border-radius: var(--radius-md); box-shadow: var(--shadow-card); cursor: pointer; }
 .quiz-next-btn.quiz-next-disabled { color: var(--text-placeholder); background: #EDE7E0; box-shadow: none; cursor: not-allowed; }
@@ -353,6 +353,41 @@ body {
   .result-type-code { font-size: 60px; }
   .quiz-question { font-size: 19px; }
 }
+
+/* ---------- 好友匹配弹窗（H5） ---------- */
+.match-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 20px;
+  animation: fadeIn 0.25s ease both;
+}
+.match-dialog {
+  width: 100%; max-width: 420px; max-height: 86vh; overflow-y: auto;
+  background: #fff; border-radius: 16px; padding: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+.match-dialog-title { font-size: 20px; font-weight: 700; color: var(--text-primary); text-align: center; margin-bottom: 12px; }
+.match-mine { font-size: 14px; color: var(--text-secondary); margin-bottom: 14px; }
+.match-mine b { color: var(--primary); font-size: 16px; }
+.match-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.match-type-item {
+  width: calc((100% - 30px) / 4); text-align: center;
+  padding: 10px 0; background: #fff; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text-regular);
+  cursor: pointer; transition: all 0.2s ease;
+}
+.match-type-item.selected { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); transform: scale(1.03); }
+.match-percent { text-align: center; font-size: 22px; font-weight: 800; color: var(--primary); margin: 14px 0 10px; }
+.match-dims-list { margin-bottom: 12px; }
+.match-dim-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.match-dim-row b { font-size: 15px; padding: 2px 10px; border-radius: 999px; }
+.match-dim-row b.same { background: var(--success); color: #fff; }
+.match-dim-row b.diff { background: var(--bg); color: var(--text-secondary); }
+.match-dim-row span.same { color: var(--success); font-weight: 600; margin-left: 6px; }
+.match-dim-row span.diff { color: var(--info); font-weight: 600; margin-left: 6px; }
+.match-summary { background: var(--primary-bg); padding: 14px; border-radius: 10px; font-size: 14px; line-height: 1.7; color: var(--text-regular); margin-bottom: 14px; }
+.match-dialog .btn-outline { width: 100%; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -370,7 +405,7 @@ body {
  * MBTI 人格测试 - H5 网页版
  * 单 HTML 文件，可直接双击打开或部署到任意静态服务器
  *
- * 包含完整数据（60道题 + 16种结果）和全部交互逻辑
+ * 包含完整数据（20道题 + 16种结果）和全部交互逻辑
  * ============================================================
  */
 
@@ -680,6 +715,8 @@ function renderResult() {
     buildMiniappGuide(r),
     '<div class="result-footer reveal reveal-6"><button class="btn-outline" onclick="retakeQuiz()">重新测试</button></div>',
     '<div class="result-share reveal reveal-6"><button class="btn-primary" onclick="shareResult()">分享给朋友</button></div>',
+    '<div class="result-share reveal reveal-6"><button class="btn-outline" onclick="saveResultCard()">保存结果为图片</button></div>',
+    '<div class="result-share reveal reveal-6"><button class="btn-outline" onclick="showMatchPanel()">好友匹配对比</button></div>',
     '<div class="result-tip reveal reveal-6">本测试基于 MBTI 理论，结果仅供参考自我探索</div>',
     '</div>'
   ].join('');
@@ -858,6 +895,136 @@ function shareResult() {
   } else {
     shareLink();
   }
+}
+
+/** 保存结果为图片（原生 canvas 绘制 → 下载 PNG，无需外部依赖） */
+function saveResultCard() {
+  var r = state.result;
+  if (!r) { showToast('请先完成测试'); return; }
+  var d = r.typeData || {};
+  var dims = r.dimensionPercents || {};
+  var W = 600, H = 800;
+  var canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d');
+  // 背景
+  ctx.fillStyle = '#F5F2EE'; ctx.fillRect(0, 0, W, H);
+  // 顶部渐变
+  var grad = ctx.createLinearGradient(0, 0, W, 280);
+  grad.addColorStop(0, '#FF7B6B'); grad.addColorStop(1, '#E94E3B');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, 280);
+  // 类型
+  ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center';
+  ctx.font = 'bold 96px sans-serif'; ctx.fillText(r.type, W / 2, 160);
+  ctx.font = '600 34px sans-serif'; ctx.fillText(d.name || '', W / 2, 220);
+  ctx.font = '28px sans-serif'; ctx.fillText('「' + (d.nickname || '') + '」', W / 2, 258);
+  // 白卡
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(40, 320, W - 80, H - 380);
+  // 维度条
+  var pairs = [
+    { k: 'EI', left: 'E', right: 'I', name: '能量来源' },
+    { k: 'SN', left: 'S', right: 'N', name: '认知方式' },
+    { k: 'TF', left: 'T', right: 'F', name: '决策方式' },
+    { k: 'JP', left: 'J', right: 'P', name: '生活态度' }
+  ];
+  var y = 370;
+  pairs.forEach(function(p) {
+    var dp = dims[p.k] || { leftPercent: 50, rightPercent: 50 };
+    ctx.fillStyle = '#4A4A4A'; ctx.textAlign = 'left';
+    ctx.font = '26px sans-serif'; ctx.fillText(p.name, 70, y);
+    var barX = 70, barW = W - 140, barY = y + 14, barH = 24;
+    ctx.fillStyle = '#EDE7E0'; ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = '#E94E3B'; ctx.fillRect(barX, barY, barW * (dp.leftPercent / 100), barH);
+    ctx.fillStyle = '#8E8E8E'; ctx.font = '22px sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText(dp.leftPercent + '%', barX + 4, barY + 40);
+    ctx.textAlign = 'right'; ctx.fillText(dp.rightPercent + '%', barX + barW - 4, barY + 40);
+    ctx.textAlign = 'left'; y += 90;
+  });
+  ctx.fillStyle = '#8E8E8E'; ctx.textAlign = 'center';
+  ctx.font = '24px sans-serif'; ctx.fillText('MBTI 人格测试 · 探索真实的自己', W / 2, H - 50);
+  // 下载
+  canvas.toBlob(function(blob) {
+    if (!blob) { showToast('生成失败'); return; }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'MBTI-' + r.type + '.png';
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    showToast('图片已生成，请长按或右键保存');
+  });
+}
+
+// ---------- 好友匹配（H5） ----------
+var MATCH_TYPES = ['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'];
+
+function compareTypesJS(a, b) {
+  var pairs = [['EI','E','I'],['SN','S','N'],['TF','T','F'],['JP','J','P']];
+  var dims = pairs.map(function(p) {
+    var sa = (a && a.indexOf(p[1]) >= 0) ? p[1] : (a ? p[2] : '');
+    var sb = (b && b.indexOf(p[1]) >= 0) ? p[1] : (b ? p[2] : '');
+    return { aSide: sa, bSide: sb, same: sa === sb && sa !== '' };
+  });
+  var sameCount = dims.filter(function(x) { return x.same; }).length;
+  var matchPercent = Math.round((sameCount / 4) * 100);
+  var summary = sameCount === 4 ? '你们高度同频，默契度满分！' :
+    sameCount === 3 ? '你们高度合拍，既有共鸣又能互补。' :
+    sameCount === 2 ? '你们各有特点，一半相同一半互补。' :
+    sameCount === 1 ? '你们差异明显，需要更多沟通磨合。' :
+    '你们几乎相反，差异既是挑战也是成长契机。';
+  return { dims: dims, sameCount: sameCount, matchPercent: matchPercent, summary: summary };
+}
+
+function showMatchPanel() {
+  var r = state.result;
+  if (!r) { showToast('请先完成测试'); return; }
+  var myType = r.type;
+  var grid = MATCH_TYPES.map(function(t) {
+    return '<div class="match-type-item" data-type="'+t+'" onclick="onPickMatchType(this)">'+t+'</div>';
+  }).join('');
+  var overlay = document.createElement('div');
+  overlay.className = 'match-overlay';
+  overlay.id = 'matchOverlay';
+  overlay.innerHTML =
+    '<div class="match-dialog">' +
+      '<div class="match-dialog-title">好友匹配</div>' +
+      '<div class="match-mine">我的类型：<b>'+myType+'</b></div>' +
+      '<div class="match-grid">'+grid+'</div>' +
+      '<button class="btn-primary" onclick="doMatchOnH5()">开始匹配</button>' +
+      '<div id="matchResultBox"></div>' +
+      '<button class="btn-outline" onclick="closeMatchPanel()">关闭</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+function onPickMatchType(el) {
+  var items = document.querySelectorAll('.match-type-item');
+  items.forEach(function(i) { i.classList.remove('selected'); });
+  el.classList.add('selected');
+  el.setAttribute('data-picked', '1');
+}
+
+function doMatchOnH5() {
+  var picked = document.querySelector('.match-type-item.selected');
+  if (!picked) { showToast('请选择对方类型'); return; }
+  var other = picked.getAttribute('data-type');
+  var myType = state.result.type;
+  var mr = compareTypesJS(myType, other);
+  var box = document.getElementById('matchResultBox');
+  box.innerHTML =
+    '<div class="match-percent">契合度 '+mr.matchPercent+'%（相同 '+mr.sameCount+'/4）</div>' +
+    '<div class="match-dims-list">' +
+      ['能量来源','认知方式','决策方式','生活态度'].map(function(n, i) {
+        var p = [['EI','E','I'],['SN','S','N'],['TF','T','F'],['JP','J','P']][i];
+        var dm = mr.dims[i];
+        return '<div class="match-dim-row"><span>'+n+'</span><b class="'+(dm.same?'same':'diff')+'">'+dm.aSide+'</b><span>vs</span><b class="'+(dm.same?'same':'diff')+'">'+dm.bSide+'</b><span class="'+(dm.same?'same':'diff')+'">'+(dm.same?'相同':'互补')+'</span></div>';
+      }).join('') +
+    '</div>' +
+    '<div class="match-summary">'+mr.summary+'</div>';
+}
+
+function closeMatchPanel() {
+  var o = document.getElementById('matchOverlay');
+  if (o) o.parentNode.removeChild(o);
 }
 
 // ---------- INIT ----------
