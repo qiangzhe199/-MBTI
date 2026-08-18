@@ -1,4 +1,4 @@
-# 育见欢喜 · MBTI 人格测试（H5 网页版）
+﻿# 育见欢喜 · MBTI 人格测试（H5 网页版）
 
 一个纯前端、单文件的 MBTI 16 型人格测试网页，部署后即可对外公开访问，无需后端服务器。
 
@@ -18,12 +18,12 @@ python -m http.server 8080
 # 然后访问 http://localhost:8080
 ```
 
-## 部署（Gitee Pages）
-1. 把本仓库 push 到 Gitee（已包含 `index.html` 与 `logo.png`）；
-2. 进入 Gitee 仓库 → **服务 / Pages**；
-3. 部署分支选你 push 的分支，部署目录填 `/`（根目录）；
-4. 点击「启动」，等待 1~2 分钟，获得公开链接：
-   `https://<用户名>.gitee.io/<仓库名>`；
+## 部署（GitHub Pages）
+1. 把本仓库 push 到 GitHub（已包含 `index.html` 与 `logo.png`）；
+2. 进入 GitHub 仓库 → **Settings → Pages**；
+3. Source 选 `Deploy from a branch`，Branch 选 `main`、目录 `/ (root)`，点 Save；
+4. 等待约 1 分钟，获得公开链接：
+   `https://<用户名>.github.io/<仓库名>/`；
 5. 将该链接填回小程序 `externalUrl`，替换原有的占位死链。
 
 ## 与小程序的对接（预留）
